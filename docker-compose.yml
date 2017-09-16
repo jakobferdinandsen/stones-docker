@@ -1,0 +1,23 @@
+php:
+  build: docker/php/
+  links:
+    - mysql:mysql
+  volumes:
+    - ./:/data/www:Z
+  ports:
+    - "443:443"
+
+mysql:
+  build: docker/mysql/
+  ports:
+    - "3306:3306"
+  environment:
+    MYSQL_DATABASE: mysigrid
+    MYSQL_USER: admin
+    MYSQL_PASSWORD: password
+    MYSQL_ROOT_PASSWORD: password
+
+redirector:
+  build: docker/redirector
+  ports:
+    - "80:80"

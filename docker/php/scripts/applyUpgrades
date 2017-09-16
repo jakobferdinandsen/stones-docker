@@ -1,0 +1,41 @@
+#!/bin/bash
+echo "Please enter the username for the mysql database linked to this container"
+read mysqluser
+echo "Please enter the password for user on mysql instance linked to this container"
+read mysqlpw
+
+dt=$(date '+%d-%m-%Y')
+ts=$(date '+%s%3N')
+dumpname="mysigrid_dump_$dt-$ts.sql"
+echo "Dumping current db to $dumpname"
+mkdir -p /data/www/data/scripts/dump
+mysqldump --user=$mysqluser --password=$mysqlpw --host=mysql-rw "mysigrid" > "/data/www/data/scripts/dump/$dumpname"
+
+curVer=$(mysql --user=$mysqluser --password=$mysqlpw --host=mysql-rw -sN -e "USE mysigrid;SELECT ver FROM admin_dbVersion ORDER BY ver desc LIMIT 1")
+
+FILES=/data/www/data/scripts/upgrades/*
+highestVer=0
+for file in $FILES
+do
+    ver=$(echo $file | sed 's/[^0-9]*//g')
+    if [ "$ver" -gt "$highestVer" ];then
+        highestVer=$ver
+    fi
+done
+echo $highestVer
+echo $curVer
+for (( i=1; i<=$highestVer; i++ ))
+do
+    if [ "$i" -gt "$curVer" ];then
+        file=/data/www/data/scripts/upgrades/$i.sql
+        if [ -f $file ]; then
+          mysql --user=$mysqluser --password=$mysqlpw --host=mysql-rw "mysigrid" < "$file"
+        else
+          file=/data/www/data/scripts/upgrades/$i.php
+          php $file
+        fi
+        mysql --user=$mysqluser --password=$mysqlpw --host=mysql-rw -e "USE mysigrid;INSERT INTO admin_dbVersion(ver, scriptPath) VALUES ($i, '$file');"
+
+        echo "DB upgraded to version $i"
+    fi
+done

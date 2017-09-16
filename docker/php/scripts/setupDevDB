@@ -1,0 +1,46 @@
+#!/bin/bash
+
+#Needs to be run in a nginx container with the mysql-client package installed
+#(Included in our custom nginx container(optimizeNginx), not in master as of friday the 13th of January)
+#Run with "bash setupDevDB.sh"
+read -r -p "Are you sure? This will drop the current database! [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY])
+
+      dt=$(date '+%d-%m-%Y')
+      ts=$(date '+%s%3N')
+      dumpname="mysigridDev_dump_$dt-$ts.sql"
+      echo "Dumping current db to $dumpname"
+      mysqldump --user=admin --password=password --host=mysql "mysigrid" > "$dumpname"
+      mysql --user=admin --password=password --host=mysql "mysigrid" < "/data/www/docker/mysql/dumpWithoutHs.sql"
+
+      FILES=/data/www/data/scripts/upgrades/*
+      highestVer=0
+      for file in $FILES
+      do
+        ver=$(echo $file | sed 's/[^0-9]*//g')
+        if [ "$ver" -gt "$highestVer" ];then
+          highestVer=$ver
+        fi
+      done
+      echo $highestVer
+      for (( i=1; i<=$highestVer; i++ ))
+      do
+        file=/data/www/data/scripts/upgrades/$i.sql
+        if [ -f $file ]; then
+          mysql --user=admin --password=password --host=mysql "mysigrid" < "$file"
+        else
+          file=/data/www/data/scripts/upgrades/$i.php
+          php $file
+        fi
+        mysql --user=admin --password=password --host=mysql -e "USE mysigrid;INSERT INTO admin_dbVersion(ver, scriptPath) VALUES ($i, '$file');"
+
+        echo "DB upgraded to version $i"
+      done
+
+      echo 'All done';
+      ;;
+    *)
+      echo 'Nothing was done, bye!'
+      ;;
+esac
