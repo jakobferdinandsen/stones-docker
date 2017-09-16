@@ -8,7 +8,7 @@ php:
     - "443:443"
 
 mysql:
-  build: docker/mysql/
+  image: mysql:latest
   ports:
     - "3306:3306"
   environment:
